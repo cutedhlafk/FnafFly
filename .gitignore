@@ -6,3 +6,4 @@ data/cache/
 data/recordings/
 models/*.npz
 logs/
+PHONE_LINK.txt

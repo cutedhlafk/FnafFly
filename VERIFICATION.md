@@ -1,4 +1,30 @@
-# Sprawdzenie — 20.09.2026
+# Sprawdzenie autotreningu — 21.09.2026
+
+- 17 testów przeszło: rozpoznawanie menu i zegara, odróżnianie punktacji od high score,
+  dwie kolejne próby w maszynie stanów, aktualizacja wag, odtwarzanie checkpointu/RNG,
+  pomijanie przerwanych prób, blokada wejścia poza UCN i po F12, izolacja podglądu telefonu.
+  Dodatkowo: wyłączna rezerwacja portu na Windows oraz bezpieczna pauza po błędzie SendInput.
+- Na rzeczywistej instalacji UCN program sam ustawił 50/20, odczytał Point Value 10000,
+  uruchamiał noce, rozpoznał co najmniej 6 przegranych i zapisał 6 aktualizacji modelu.
+  Na tym etapie zarejestrował 248 decyzji i maksymalny odczytany czas 12,1 s.
+- Program sam wracał do menu i uruchamiał kolejne próby. Próba, w której przeoczył wynik
+  i zobaczył ekran przedmiotu, została pominięta zamiast otrzymać wymyśloną nagrodę.
+- Panel przeglądarkowy wyświetlał aktualny obraz UCN oraz aktywność 5000 punktów
+  rzeczywistej anatomii, podczas pracy pełnego grafu 138 639 neuronów.
+- Po końcowych poprawkach: checkpoint wczytany, próba nr 11 zakończona i zapisana,
+  próba nr 12 rozpoczęta automatycznie. Drugie wywołanie programu odmówiło uruchomienia
+  kolejnego trenera na zajętym porcie. W dzienniku 11 wyników i 11 aktualizacji.
+- Podgląd otwarto przez adres LAN 192.168.0.110 z tokenem, bez przycisków sterujących.
+  Przy szerokości viewportu 390 px dokument miał scrollWidth 375 px — bez poziomego
+  przepełnienia; obie kolumny układają się pionowo. Test wykonano w przeglądarce PC.
+- Reguła Zapory Windows FlyUCN-Viewer-8766 została włączona dla portu 8766, programu
+  bazowego Pythona używanego przez venv i adresów LocalSubnet. Sprawdzono ścieżkę
+  rzeczywistego procesu nasłuchującego. Nie zmieniono globalnych ustawień zapory.
+- To weryfikacja działania automatyzacji i uczenia. Nie wykazano opanowania 50/20,
+  wygranej ani statystycznie istotnej poprawy umiejętności. Połączenie z fizycznego
+  telefonu wymaga telefonu w tej samej sieci; test na komputerze go nie zastępuje.
+
+# Wcześniejsze sprawdzenie — 20.09.2026
 
 Wykonano na wskazanym komputerze i instalacji Steam UCN.
 

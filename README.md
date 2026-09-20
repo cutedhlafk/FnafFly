@@ -1,5 +1,46 @@
 # Fly / UCN — lokalne laboratorium
 
+## Autotrening 50/20 — aktualizacja 21.09.2026
+
+**Uruchom `START_FLY.bat`.** Otworzy panel na `http://127.0.0.1:8766`, uruchomi UCN,
+ustawi wszystkie postacie na 20 i sprawdzi punktację 10 000. Następnie sam rozpoczyna
+noce, steruje klawiaturą i myszą, rozpoznaje przegrane/wygrane, aktualizuje model,
+zapisuje go i uruchamia następną próbę. Nie wymaga demonstracji ani kalibracji.
+
+- **F12**: zatrzymaj. **F8**: pauza. **F7 w oknie UCN**: wznów.
+- Gra musi pozostać aktywna, a pulpit odblokowany. Przełączenie do innego okna
+  zatrzymuje wejście i przerywa bieżącą próbę bez uczenia fałszywego wyniku.
+- Na telefonie w tej samej sieci Wi-Fi otwórz link z `PHONE_LINK.txt` lub sekcji
+  „Oglądaj na telefonie” w panelu PC. Telefon służy do oglądania, nie do sterowania.
+  Komputer i UCN pracują także po zamknięciu podglądu.
+- `ENABLE_PHONE.bat` jednorazowo dodaje regułę Zapory Windows dla lokalnej podsieci,
+  portu 8766 i Pythona tego projektu. Wymaga zgody administratora Windows.
+  Regułę można usunąć w administracyjnym PowerShell:
+  `Remove-NetFirewallRule -Name FlyUCN-Viewer-8766`.
+- Model: `models/auto50_policy.npz`; dziennik prób: `logs/auto50.jsonl`;
+  błędy: `logs/autotrainer.log`. Model automatycznie wczytuje się przy starcie.
+  Zapis po każdej zakończonej próbie i co 30 s. Przerwane trajektorie są pomijane.
+- Dane FlyWire i wcześniejszy `models/fly_policy.npz` pozostają zachowane.
+  Starszy tryb demonstracji uruchamia się poleceniem `.venv\Scripts\python.exe src\app.py`.
+
+Nowy tryb używa pełnego grafu 138 639 neuronów jako stałej sieci przetwarzającej obraz.
+Uczy warstwę decyzji i estymator wartości metodą actor–critic, z nagrodą za postęp
+rozpoznanego zegara gry i końcowy wynik. Klawisze oraz pozycje myszy wybiera model.
+Obsługa menu i ponawianie nocy to automatyzacja programu. Uczenie nie wymaga
+200 ręcznych przykładów. OCR działa lokalnie, używając RapidOCR i ONNX Runtime.
+
+**To działający autotrening, nie model, który już opanował 50/20.** Krótkie próby
+potwierdzają działanie pętli i zmianę wag, nie poprawę skuteczności ani zwycięstwo.
+Wejście wzrokowe jest uproszczone, model nie analizuje dźwięku. Wyświetlany czas
+przeżycia to ostatni wiarygodnie odczytany zegar; może nie obejmować ostatnich sekund.
+Niepewne wyniki nie są uznawane za wygrane. Zmiana rozdzielczości, języka lub wyglądu
+gry może wymagać poprawki rozpoznawania. Przy nierozpoznanym ekranie program próbuje
+wrócić do menu, bez nagradzania samego czekania.
+
+Testy: `.venv\Scripts\python.exe -m unittest discover -s tests -v`.
+
+## Starszy tryb ręczny — opis zachowany poniżej
+
 Program łączy obraz **Ultimate Custom Night** z pełną siecią połączeń **FlyWire FAFB v783**. W przeglądarce można obracać model 3D, wybierać neurony i grupy funkcjonalne oraz oglądać ich aktualną aktywność i propozycje akcji.
 
 **To eksperymentalny model uczący się, a nie dostarczony mistrz UCN.** Żadna liczba przykładów sama w sobie nie dowodzi umiejętności wygrywania. W tej wersji decyzje uczą się przez demonstracje oraz ręcznie przyznawane nagrody. Nie ma analizy dźwięku ani automatycznego ustawiania postaci / restartowania nocy.

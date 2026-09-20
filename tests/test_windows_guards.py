@@ -3,7 +3,7 @@ import sys
 import threading
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import patch, Mock
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'src'))
 from windows_game import Game, INPUT
 
@@ -37,5 +37,11 @@ class TestInputGuard(unittest.TestCase):
             self.assertTrue(g.perform('A'))
         self.assertEqual(calls,[(65,False),(65,True)])
         self.assertFalse(g.injected)
+
+    def test_secure_desktop_input_failure_pauses_without_killing_worker(self):
+        g=self.stub();g.command=Mock()
+        with patch.object(g,'focused',return_value=True),patch.object(g,'_key',side_effect=OSError(5,'blocked')):
+            self.assertFalse(g.perform('A'))
+        self.assertTrue(g.emergency.is_set());g.command.assert_called_once_with('pause')
 
 if __name__=='__main__':unittest.main()
