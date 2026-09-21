@@ -14,11 +14,14 @@ class Observation:
     buttons: dict = field(default_factory=dict)
     verified50: bool = False
     texts: list = field(default_factory=list)
+    alerts: dict = field(default_factory=dict)
+    temperature: float | None = None
 
 def classify(words):
     """Words: (text, normalized center x, center y, confidence). Pure and testable."""
     obs=Observation(texts=[w[0] for w in words])
     normalized=[(clean(t),x,y,p) for t,x,y,p in words if p>=.55]
+    hud=any(re.fullmatch(r'(12|[1-5])AM',t) and x>.8 and y<.2 for t,x,y,p in normalized)
     menu=[w for w in normalized if 'SETALL' in w[0] and w[1]>.75]
     # UCN draws the label and numeric value on separate lines inside each button.
     for t,x,y,p in menu:
@@ -39,9 +42,9 @@ def classify(words):
             if t=='POINTVALUE':
                 point_value |= any(v=='10000' and abs(vx-x)<.08 and 0<vy-y<.08 for v,vx,vy,vp in normalized)
         obs.verified50=len(levels)>=50 or point_value
-    elif 'YOUDIDIT' in joined or any(t=='6AM' and .2<x<.8 and .15<y<.8 for t,x,y,p in normalized):
+    elif not hud and any(t in ('YOUDIDIT','6AM') and .2<x<.8 and .15<y<.8 for t,x,y,p in normalized):
         obs.scene='win'
-    elif 'GAMEOVER' in joined:
+    elif not hud and any(t=='GAMEOVER' and .2<x<.8 and .2<y<.8 for t,x,y,p in normalized):
         obs.scene='loss'
     elif 'TAKETHISITEMFOR' in joined and 'YOURTROUBLES' in joined:
         obs.scene='bonus'
@@ -55,6 +58,17 @@ def classify(words):
                 obs.seconds=int(m[1])*60+int(m[2])+int(m[3] or '0')/10
         if obs.seconds is not None or any(re.fullmatch(r'(12|[1-5])AM',t) and x>.8 and y<.2 for t,x,y,p in normalized):
             obs.scene='playing'
+    if obs.scene in ('playing','unknown'):
+        for t,x,y,p in normalized:
+            if p<.85:continue
+            if t=='MUTECALL':obs.alerts['mute_call']=(x,y)
+            if t=='SKIP':obs.alerts['skip_ad']=(x,y)
+            if t=='RESETVENTILATION':obs.alerts['reset_vent']=(x,y)
+        for text,x,y,p in words:
+            if x>.85 and y>.75 and p>=.85:
+                match=re.fullmatch(r'\s*(\d{2,3})\s*[°º]\s*[FC]?\s*',text)
+                if match and 50<=int(match[1])<=130:obs.temperature=float(match[1])
+        if obs.scene=='unknown' and obs.alerts:obs.scene='interruption'
     return obs
 
 class ScreenReader:
@@ -74,7 +88,11 @@ class ScreenReader:
                 center=np.asarray(b).mean(axis=0)
                 words.append((t,float(center[0]/img.width),float(center[1]/img.height),float(p)))
         obs=classify(words)
-        if obs.scene=='unknown':
+        dark_enough=float(np.mean(np.asarray(img.convert('L'))>28))<=.20
+        if obs.scene=='loss' and not dark_enough:
+            # Toy Freddy's television also says GAME OVER. It is not our terminal.
+            obs.scene='unknown'
+        if obs.scene=='unknown' and dark_enough:
             # Death text fades in dark red; contrast normalization makes it legible
             # without treating a black frame/jumpscare as proof of a loss.
             crop=img.crop((int(img.width*.25),int(img.height*.25),int(img.width*.75),int(img.height*.8)))

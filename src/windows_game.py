@@ -349,6 +349,13 @@ class Game:
 
         self.thread.start()
 
+    def process_id(self):
+        hwnd=self.find()
+        if not hwnd:return None
+        process=wt.DWORD()
+        u.GetWindowThreadProcessId(hwnd,ct.byref(process))
+        return process.value or None
+
     def find(
         self,
         force=False,

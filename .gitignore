@@ -7,3 +7,5 @@ data/recordings/
 models/*.npz
 logs/
 PHONE_LINK.txt
+audio_capture/bin/
+audio_capture/obj/

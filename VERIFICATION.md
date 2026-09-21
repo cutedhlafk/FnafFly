@@ -1,5 +1,35 @@
 # Sprawdzenie autotreningu — 21.09.2026
 
+## Poprawki ciągłego uczenia, obrony i audio (kolejna sesja)
+
+- 32 testy przeszły, w tym przypisanie nagrody do czasu przechwycenia klatki,
+  uczenie przed końcem nocy, rozdzielenie akcji reguł i polityki, pełne 50 profili,
+  odróżnienie GAME OVER na monitorze Toy Freddy’ego od końca własnej nocy,
+  stereo, pasma, cisza, nieaktualne próbki i migracja wag.
+- Pomocnik .NET 8 zbudowany z lokalnego źródła: 0 błędów i ostrzeżeń.
+  Windows process loopback działa na tym PC. W rzeczywistym UCN odczytano
+  setki pakietów analizy stereo z niezerowymi poziomami i pasmami.
+  Nie nagrywano mikrofonu, całego wyjścia systemowego ani plików audio.
+- Pomocnik odrzucił PID z niezgodną ścieżką EXE: kod błędu i 0 bajtów PCM.
+  Izolacja innych aplikacji opiera się na trybie INCLUDE_TARGET_PROCESS_TREE
+  API Windows; nie wykonywano niezależnego testu z drugą grającą aplikacją.
+- W sprawdzonym stanie: 37 zakończonych prób łącznie z wcześniejszym treningiem,
+  1266 decyzji, 37 aktualizacji, w tym 3 aktualizacje podczas nocy i 2 działania
+  reguł. Nadal 0 wygranych. Liczniki rosną podczas dalszej pracy.
+- Zapisano checkpoint v3: 570 wejść (554 stare + 16 audio), zachowano
+  `auto50_policy.pre-audio-backup.npz`. Norma wag audio przestała być zerowa
+  (około 0,0086 w sprawdzonym zapisie), co potwierdza podłączenie do uczenia,
+  a nie skuteczne rozpoznawanie konkretnych dźwięków animatroników.
+- W przeglądarce: 50 opcji katalogu, poprawne przełączenie opisu na Ballorę,
+  działające liczniki i poziomy audio, brak błędów konsoli. Przy viewport 390 px
+  dokument miał szerokość przewijania 375 px. To emulacja rozmiaru na PC,
+  nie test fizycznego telefonu.
+- Opisy są bazą wiedzy, nie automatycznym rozpoznawaniem wszystkich postaci.
+  Dźwięk jest dodatkowym wejściem warstwy decyzji; symulacja neuronów nadal
+  przetwarza obraz. Nie wykazano poprawy skuteczności ani opanowania 50/20.
+
+## Poprzednia sesja autotreningu
+
 - 17 testów przeszło: rozpoznawanie menu i zegara, odróżnianie punktacji od high score,
   dwie kolejne próby w maszynie stanów, aktualizacja wag, odtwarzanie checkpointu/RNG,
   pomijanie przerwanych prób, blokada wejścia poza UCN i po F12, izolacja podglądu telefonu.

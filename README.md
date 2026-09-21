@@ -19,7 +19,8 @@ zapisuje go i uruchamia następną próbę. Nie wymaga demonstracji ani kalibrac
   `Remove-NetFirewallRule -Name FlyUCN-Viewer-8766`.
 - Model: `models/auto50_policy.npz`; dziennik prób: `logs/auto50.jsonl`;
   błędy: `logs/autotrainer.log`. Model automatycznie wczytuje się przy starcie.
-  Zapis po każdej zakończonej próbie i co 30 s. Przerwane trajektorie są pomijane.
+  Zapis po każdej zakończonej próbie i co 30 s. Po przerwaniu odrzucany jest
+  nieukończony fragment; wcześniejsze aktualizacje z potwierdzonego zegara pozostają.
 - Dane FlyWire i wcześniejszy `models/fly_policy.npz` pozostają zachowane.
   Starszy tryb demonstracji uruchamia się poleceniem `.venv\Scripts\python.exe src\app.py`.
 
@@ -31,13 +32,43 @@ Obsługa menu i ponawianie nocy to automatyzacja programu. Uczenie nie wymaga
 
 **To działający autotrening, nie model, który już opanował 50/20.** Krótkie próby
 potwierdzają działanie pętli i zmianę wag, nie poprawę skuteczności ani zwycięstwo.
-Wejście wzrokowe jest uproszczone, model nie analizuje dźwięku. Wyświetlany czas
+Wejście wzrokowe jest uproszczone. Model analizuje podstawowe cechy audio, ale nie
+rozpoznaje jeszcze konkretnych animatroników po ich głosach. Wyświetlany czas
 przeżycia to ostatni wiarygodnie odczytany zegar; może nie obejmować ostatnich sekund.
 Niepewne wyniki nie są uznawane za wygrane. Zmiana rozdzielczości, języka lub wyglądu
 gry może wymagać poprawki rozpoznawania. Przy nierozpoznanym ekranie program próbuje
 wrócić do menu, bez nagradzania samego czekania.
 
 Testy: `.venv\Scripts\python.exe -m unittest discover -s tests -v`.
+
+### Ciągłe uczenie, obrona i dźwięk
+
+- Aktualizacja następuje także w trakcie nocy, po co najmniej 32 decyzjach
+  potwierdzonych odczytem zegara. Nagroda jest rozdzielana między decyzje sprzed
+  przechwycenia obrazu, nie między późniejsze akcje wykonane podczas pracy OCR.
+  Wagi mają ograniczone aktualizacje i kontrolę wartości skończonych.
+- W panelu jest katalog wszystkich 50 postaci: sygnał, obrona i źródło.
+  `src/defense_knowledge.py` zawiera również plany działań. Automatycznie podłączone
+  są obecnie pewne sygnały OCR (wyciszenie rozmowy, reklama, reset wentylacji),
+  chłodzenie przy odczytanej temperaturze i profilaktyczna globalna pozytywka.
+  Pozostałe plany wymagają detektorów postaci. Same opisy nie uczą sieci rozumienia
+  tekstu. Reguły uczą decyzji przez oddzielną aktualizację nadzorowaną i mają własny licznik.
+- Dźwięk przechwytuje lokalny pomocnik `audio_capture/Program.cs` przez
+  [Windows process loopback](https://learn.microsoft.com/en-us/samples/microsoft/windows-classic-samples/applicationloopbackaudio-sample/).
+  Sprawdza PID oraz pełną ścieżkę UCN. Obejmuje tylko proces gry i jego potomków;
+  nie używa mikrofonu ani całego wyjścia systemowego. Nie zapisuje nagrań.
+- Szesnaście cech audio (stereo, szczyty, różnica stron, zmiana głośności, osiem
+  pasm, przejścia przez zero, dostępność) trafia bezpośrednio do uczonej warstwy
+  decyzji obok odczytu FlyWire. Nie jest to biologiczne mapowanie słuchu muchy.
+  Widok neuronów nadal pokazuje odpowiedź grafu na obraz; panel osobno pokazuje audio.
+  Nieaktualne próbki są zerowane po 0,75 s, błąd audio nie wyłącza treningu obrazu.
+- Budowa audio: `powershell -NoProfile -ExecutionPolicy Bypass -File build_audio.ps1`.
+  Wymagane: Windows build 20348+ i .NET SDK 8 lub nowszy z runtime .NET 8.
+  Na tym PC pomocnik jest już zbudowany. `START_FLY.bat` buduje go, jeśli go brakuje.
+- Migracja modelu zachowuje wagi obrazu i dodaje zerowe kolumny audio.
+  Kopia sprzed migracji: `models/auto50_policy.pre-audio-backup.npz`.
+  Poprzedni zapis: `models/auto50_policy.previous.npz`. Zapisy są atomowe.
+  Model z cechami audio wymaga tej wersji programu.
 
 ## Starszy tryb ręczny — opis zachowany poniżej
 
