@@ -10,6 +10,6 @@ if not exist ".venv\Scripts\python.exe" (
 )
 
 if not exist "audio_capture\bin\publish\AudioCapture.exe" powershell -NoProfile -ExecutionPolicy Bypass -File "build_audio.ps1"
-".venv\Scripts\python.exe" "src\autotrainer.py"
+start "" /min powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0start_fly.ps1"
 
 if errorlevel 1 pause

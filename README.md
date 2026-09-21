@@ -7,7 +7,11 @@ ustawi wszystkie postacie na 20 i sprawdzi punktację 10 000. Następnie sam roz
 noce, steruje klawiaturą i myszą, rozpoznaje przegrane/wygrane, aktualizuje model,
 zapisuje go i uruchamia następną próbę. Nie wymaga demonstracji ani kalibracji.
 
-- **F12**: zatrzymaj. **F8**: pauza. **F7 w oknie UCN**: wznów.
+- **F12**: zatrzymaj. **F8 w UCN**: pauza. **F7**: wznów, również poza UCN.
+  Trener musi być uruchomiony przez `START_FLY.bat`; sam klawisz nie uruchamia
+  niepracującego programu. Trener działa w tle niezależnie od konsoli startowej.
+  F7 otwiera brakującą grę i próbuje ją aktywować. Jeżeli Windows odmówi zmiany
+  aktywnego okna, panel pokaże prośbę o kliknięcie UCN.
 - Gra musi pozostać aktywna, a pulpit odblokowany. Przełączenie do innego okna
   zatrzymuje wejście i przerywa bieżącą próbę bez uczenia fałszywego wyniku.
 - Na telefonie w tej samej sieci Wi-Fi otwórz link z `PHONE_LINK.txt` lub sekcji

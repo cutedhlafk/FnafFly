@@ -18,6 +18,15 @@ class TestInputGuard(unittest.TestCase):
     def test_sendinput_abi(self):
         self.assertEqual(ctypes.sizeof(INPUT),40 if ctypes.sizeof(ctypes.c_void_p)==8 else 28)
 
+    def test_f7_resumes_outside_game_once_per_press(self):
+        for enabled in (True,False):
+            g=self.stub();g.global_resume=enabled;g.observe_inputs=False;g.command=Mock()
+            g.closed=Mock();g.closed.wait.side_effect=[False,False,True]
+            with patch.object(g,'find'),patch.object(g,'focused',return_value=False),patch('windows_game.u.GetAsyncKeyState',side_effect=lambda vk:0x8000 if vk==0x76 else 0):
+                g._sample()
+            if enabled:g.command.assert_called_once_with('play')
+            else:g.command.assert_not_called()
+
     def test_no_injection_outside_game_or_after_emergency(self):
         g=self.stub()
         with patch.object(g,'focused',return_value=False),patch.object(g,'_key') as key:

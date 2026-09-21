@@ -478,7 +478,8 @@ class Trainer:
         self.audio = GameAudio(GAME_EXE)
 
         self.game = Game(
-            self.command
+            self.command,
+            global_resume=True,
         )
 
         self.loop = EpisodeLoop(
@@ -599,6 +600,8 @@ class Trainer:
         self,
         name,
     ):
+        if name == "play":
+            name = "start"
         if name in (
             "stop",
             "pause",
@@ -746,6 +749,15 @@ class Trainer:
                             self.error = ""
 
                             self.game.emergency.clear()
+                            self.note = "F7 odebrane — uruchamiam UCN."
+                            self.loop.note = self.note
+                            self.log("resume", source="F7 / panel")
+                            self.latest = None
+                            self.observed = None
+                            self.feature_frames.clear()
+                            if not self.game.find(force=True):
+                                self.game.launch()
+                                self.game.wait_for_window(20)
 
                             self.loop.last_known = (
                                 begin
@@ -756,9 +768,11 @@ class Trainer:
                                 + 0.3
                             )
 
-                            self.game.activate(
+                            activated = self.game.activate(
                                 5
                             )
+                            if not activated:
+                                self.loop.note = "F7 odebrane. Kliknij okno UCN — Windows nie przyznał mu fokusu."
 
                         elif cmd == "save":
                             self.learner.save()

@@ -313,7 +313,9 @@ class Game:
     def __init__(
         self,
         command,
+        global_resume=False,
     ):
+        self.global_resume = global_resume
         self.hwnd = None
         self.last_find = 0.0
 
@@ -743,6 +745,7 @@ class Game:
                         focused
                         or cmd
                         == "stop"
+                        or (cmd == "play" and self.global_resume)
                     )
                 ):
                     if (

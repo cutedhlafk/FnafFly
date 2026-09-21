@@ -1,5 +1,18 @@
 # Sprawdzenie autotreningu — 21.09.2026
 
+## Naprawa F7
+
+- Przy diagnozie nie działał ani proces trenera, ani serwer na porcie 8766.
+- Start przez `START_FLY.bat` uruchamia teraz odłączony od konsoli proces w tle.
+  Ponowne uruchomienie otwiera istniejący panel, bez drugiego trenera.
+- F7 jest obsługiwane poza oknem UCN; mapowanie `play` → `start` jest także
+  wewnątrz Trainer.command, a nie wyłącznie w inicjalizacji main.
+- 34 testy przeszły, w tym F7 poza grą i pojedyncze wznowienie na przytrzymanie.
+- Rzeczywisty test: F8 ustawiło paused=true; F7 z Eksploratora odebrano, ale
+  Windows odmówił przeniesienia fokusu — panel poprawnie wskazał blokadę.
+  F7 w UCN wznowiło grę, ustawiło 50/20, przeszło ekran instrukcji i doprowadziło
+  do rozgrywki: licznik decyzji wzrósł z 1341 do 1368, odczytano 6,1 s nocy.
+
 ## Poprawki ciągłego uczenia, obrony i audio (kolejna sesja)
 
 - 32 testy przeszły, w tym przypisanie nagrody do czasu przechwycenia klatki,

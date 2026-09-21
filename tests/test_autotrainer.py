@@ -7,9 +7,17 @@ import numpy as np
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'src'))
 from autopolicy import Learner
 from screen_reader import classify, Observation
-from autotrainer import EpisodeLoop
+from autotrainer import EpisodeLoop, Trainer
+from collections import deque
+import threading
 
 class AutoTests(unittest.TestCase):
+    def test_f7_maps_to_start_without_main_wrapper(self):
+        trainer=Trainer.__new__(Trainer)
+        trainer.lock=threading.RLock();trainer.commands=deque()
+        trainer.command('play')
+        self.assertEqual(list(trainer.commands),['start'])
+
     def test_menu_requires_configured_score_not_highscore(self):
         words=[('SET ALL 0',.9,.1,.99),('SET ALL 20',.9,.3,.99),('GO',.9,.9,.99),('HIGH SCORE 10000',.5,.95,.99)]
         self.assertFalse(classify(words).verified50)
