@@ -112,6 +112,8 @@ class EpisodeLoop:
         captured_at=None,
     ):
         captured_at = now if captured_at is None else captured_at
+        if min(now,captured_at) < self.deadline:
+            return
         self.advisor.observe(obs, captured_at)
         if obs.scene == self.last_scene:
             self.stable += 1
@@ -123,9 +125,6 @@ class EpisodeLoop:
         if obs.scene != "unknown":
             self.last_known = now
 
-        if now < self.deadline:
-            return
-
         if obs.scene == "menu":
             if self.active:
                 self.abort(
@@ -134,8 +133,7 @@ class EpisodeLoop:
                 )
 
             if (
-                self.phase == "verify"
-                and obs.verified50
+                obs.verified50
             ):
                 self.verified = True
 
@@ -185,10 +183,20 @@ class EpisodeLoop:
                     "nie uruchamiam innej trudności."
                 )
 
-        elif (
-            obs.scene == "instructions"
-            and self.verified
-        ):
+        elif obs.scene == "instructions":
+            if not self.verified:
+                self.note = "Wznawianie z instrukcji: wracam do menu, aby potwierdzić 50/20."
+                self.game.perform("ESC")
+                self.phase = "menu"
+                self.deadline = now + 2
+                return
+            if "go" not in obs.buttons:
+                self.note = "Ekran instrukcji: szukam przycisku GO."
+                if now - self.last_recovery > 15:
+                    self.game.perform("ESC")
+                    self.last_recovery = now
+                    self.deadline = now + 2
+                return
             if (
                 "go" in obs.buttons
                 and self.game.click_normalized(
@@ -520,6 +528,8 @@ class Trainer:
                         continue
 
         self.reader = None
+        self.capture_generation = 0
+        self.ocr_heartbeat = 0.0
         self.latest = None
         self.observed = None
 
@@ -624,6 +634,28 @@ class Trainer:
                 self.commands.append(
                     name
                 )
+                worker = getattr(self, "worker", None)
+                if name == "start" and worker is not None and worker.ident is not None and not worker.is_alive() and not self.closed.is_set():
+                    self.worker = threading.Thread(target=self.run, daemon=True, name="autotrainer")
+                    self.worker.start()
+
+    def ensure_reader(self):
+        if not self.ocr_worker.is_alive():
+            self.reader = None
+            self.ocr_worker = threading.Thread(target=self.read_loop, daemon=True, name="screen-reader")
+            self.ocr_worker.start()
+
+    def training_health(self):
+        if not self.worker.is_alive():
+            return "Wątek treningu zatrzymany: " + (self.error or "F7 uruchomi go ponownie")
+        if self.paused:return "Pauza — F7 wznawia"
+        if not self.focused:return "Brak aktywnego okna UCN — kliknij grę"
+        if not self.ocr_worker.is_alive():return "Rozpoznawanie obrazu zatrzymane — F7 ponawia"
+        if not self.ocr_heartbeat:return "Ładowanie rozpoznawania obrazu"
+        if time.monotonic()-self.ocr_heartbeat>8:return "Brak świeżego OCR — nie przyznaję nagrody za czekanie"
+        if not self.loop.active:return "Przygotowanie nocy: " + self.loop.note
+        if not self.learner.pending:return "Noc aktywna — oczekiwanie na pierwszą akcję"
+        return "Uczenie aktywne — próbki oczekują na potwierdzenie zegara lub wyniku"
 
     def read_loop(
         self,
@@ -632,16 +664,19 @@ class Trainer:
             self.reader = (
                 ScreenReader()
             )
+            last_stamp = None
 
             while not self.closed.is_set():
                 with self.lock:
                     current = (
                         self.latest
                     )
+                    generation = self.capture_generation
 
                 if (
                     current is None
                     or self.paused
+                    or current[1] == last_stamp
                 ):
                     self.closed.wait(
                         0.2
@@ -658,8 +693,12 @@ class Trainer:
                         frame
                     )
                 )
+                last_stamp = stamp
 
                 with self.lock:
+                    if self.paused or self.latest is None or generation != self.capture_generation:
+                        continue
+                    self.ocr_heartbeat = time.monotonic()
                     self.observed = (
                         obs,
                         stamp,
@@ -702,7 +741,7 @@ class Trainer:
                 10
             )
 
-            self.ocr_worker.start()
+            self.ensure_reader()
 
             last_save = (
                 time.monotonic()
@@ -749,12 +788,16 @@ class Trainer:
                             self.error = ""
 
                             self.game.emergency.clear()
+                            self.capture_generation += 1
+                            self.ensure_reader()
                             self.note = "F7 odebrane — uruchamiam UCN."
                             self.loop.note = self.note
                             self.log("resume", source="F7 / panel")
                             self.latest = None
                             self.observed = None
                             self.feature_frames.clear()
+                            self.loop.stable = 0
+                            self.loop.last_scene = "unknown"
                             if not self.game.find(force=True):
                                 self.game.launch()
                                 self.game.wait_for_window(20)
@@ -790,6 +833,7 @@ class Trainer:
                 ):
                     if lost_at is None:
                         lost_at = begin
+                        self.capture_generation += 1
 
                     if (
                         self.loop.active
@@ -1054,6 +1098,11 @@ class Trainer:
                 "updates":
                     self.learner.updates,
                 "continuous_updates": self.learner.continuous_updates,
+                "training_health": self.training_health(),
+                "worker_alive": self.worker.is_alive(),
+                "ocr_alive": self.ocr_worker.is_alive(),
+                "last_weight_change": self.learner.last_weight_change,
+                "last_update_delta": self.learner.last_update_delta,
                 "audio": self.audio.sample()[1],
                 "guided_steps": self.learner.guided_steps,
                 "pending_steps": len(self.learner.pending),

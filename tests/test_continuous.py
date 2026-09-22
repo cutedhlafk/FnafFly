@@ -9,6 +9,15 @@ from screen_reader import classify, Observation
 from defense_knowledge import catalog, DefenseAdvisor
 
 class ContinualTests(unittest.TestCase):
+    def test_update_reports_real_weight_change_and_restores_it(self):
+        self.p.record(self.p.act(self.x)[2],reward=1,at=1)
+        self.p._learn(self.p.pending)
+        self.assertGreater(self.p.last_update_delta,0)
+        self.assertGreater(self.p.last_weight_change,0)
+        self.p.save()
+        restored=Learner(8,'test',self.path)
+        self.assertEqual(restored.last_update_delta,self.p.last_update_delta)
+
     def setUp(self):
         self.folder=tempfile.TemporaryDirectory()
         self.path=Path(self.folder.name)/'policy.npz'

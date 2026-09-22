@@ -12,6 +12,43 @@ from collections import deque
 import threading
 
 class AutoTests(unittest.TestCase):
+    def test_old_menu_frame_cannot_click_after_transition_deadline(self):
+        game=Mock();loop=EpisodeLoop(game,Mock(),Mock(),Mock());loop.deadline=105
+        loop.observe(Observation('menu',verified50=True,buttons={'go':(.9,.9)}),106,captured_at=103)
+        game.click_normalized.assert_not_called()
+
+    def test_resume_on_instructions_without_verification_recovers(self):
+        game=Mock();loop=EpisodeLoop(game,Mock(),Mock(),Mock())
+        loop.verified=True
+        loop.abort('pause')
+        loop.observe(Observation('instructions',buttons={'go':(.9,.9)}),100)
+        game.perform.assert_called_once_with('ESC')
+        self.assertEqual(loop.phase,'menu')
+        game.click_normalized.assert_not_called()
+        loop.observe(Observation('menu',verified50=True,buttons={'go':(.9,.9)}),103)
+        self.assertTrue(loop.verified)
+        loop.observe(Observation('instructions',buttons={'go':(.9,.9)}),105)
+        self.assertEqual(game.click_normalized.call_count,2)
+
+    def test_instructions_detected_when_go_ocr_missing(self):
+        obs=classify([(t,.3,.3+i*.08,.99) for i,t in enumerate(['1 - Power Generator','Z - Flashlight','A - Close Left Door'])])
+        self.assertEqual(obs.scene,'instructions')
+        self.assertNotIn('go',obs.buttons)
+
+    def test_missing_go_in_instructions_has_timeout(self):
+        game=Mock();loop=EpisodeLoop(game,Mock(),Mock(),Mock());loop.verified=True
+        loop.observe(Observation('instructions'),100)
+        game.perform.assert_called_once_with('ESC')
+
+    def test_f7_restarts_dead_worker(self):
+        from unittest.mock import patch
+        trainer=Trainer.__new__(Trainer);trainer.lock=threading.RLock();trainer.commands=deque()
+        trainer.closed=threading.Event();trainer.worker=Mock(ident=123)
+        trainer.worker.is_alive.return_value=False
+        with patch('autotrainer.threading.Thread') as factory:
+            trainer.command('play');factory.return_value.start.assert_called_once()
+            self.assertEqual(list(trainer.commands),['start'])
+
     def test_f7_maps_to_start_without_main_wrapper(self):
         trainer=Trainer.__new__(Trainer)
         trainer.lock=threading.RLock();trainer.commands=deque()

@@ -8,7 +8,7 @@ import numpy as np
 
 ACTIONS = ['WAIT','A','D','W','F','S','SPACE','Z','X','C','1','2','3','4','5','6','ENTER','CLICK','MOVE','HOLD_CLICK']
 SIZES = [len(ACTIONS), 40, 24]
-ROLLOUT = 32
+ROLLOUT = 16
 
 def softmax(x):
     v = np.exp(x - x.max())
@@ -27,6 +27,8 @@ class Learner:
         self.updates = self.steps = self.episodes = self.wins = 0
         self.continuous_updates = self.guided_steps = 0
         self.best = self.loss = self.entropy = 0.
+        self.last_weight_change = 0.
+        self.last_update_delta = 0.
         self.pending = []
         self.credited = 0
         self._needs_migration_backup = False
@@ -55,7 +57,7 @@ class Learner:
                 self.value=old_value
                 for k in ['updates','steps','episodes','wins','continuous_updates','guided_steps']:
                     if k in d:setattr(self,k,int(d[k]))
-                for k in ['best','loss','entropy']:
+                for k in ['best','loss','entropy','last_weight_change','last_update_delta']:
                     if k in d:setattr(self,k,float(d[k]))
                 self.rng.bit_generator.state=json.loads(str(d['rng']))
                 self._needs_migration_backup=version==1 or migrate
@@ -123,6 +125,16 @@ class Learner:
 
     def _learn(self, entries, bootstrap=0.):
         if not entries:return
+        before=[h.copy() for h in self.heads]+[self.value.copy()]
+        # Reuse confirmed samples for three bounded optimization passes. Old
+        # behavior probabilities stay fixed so clipping limits stale reinforcement.
+        for _ in range(3):self._learn_epoch(entries,bootstrap)
+        self.last_update_delta=float(np.sqrt(sum(np.sum((a-b)**2) for a,b in zip([*self.heads,self.value],before))))
+        self.last_weight_change=time.time()
+        self.updates+=1
+
+    def _learn_epoch(self, entries, bootstrap=0.):
+        if not entries:return
         returns=[];g=float(np.clip(bootstrap,-10,10))
         for _,r,_ in reversed(entries):
             g=r+.995*g;returns.append(g)
@@ -134,12 +146,17 @@ class Learner:
             advantage=float(np.clip(target-float(self.value@x),-5,5))
             vg+=advantage*x;errors.append(advantage**2)
             if not actor:continue
+            current_ps=[softmax(h@x) for h in self.heads]
+            relevant=range(len(self.heads)) if choices[0]>=17 else range(1)
+            # The sampled action includes both mouse coordinates. Clip the joint
+            # likelihood, not three unrelated ratios for one composite action.
+            log_ratio=sum(np.log(max(float(current_ps[i][choices[i]]),1e-8))-np.log(max(float(old_ps[i][choices[i]]),1e-8)) for i in relevant)
+            ratio=float(np.exp(np.clip(log_ratio,-20,20)))
+            clipped=(advantage>0 and ratio>1.2) or (advantage<0 and ratio<.8)
             for i,(head,oldp,c) in enumerate(zip(self.heads,old_ps,choices)):
                 if i and choices[0]<17:continue
-                p=softmax(head@x)
-                ratio=float(p[c]/max(float(oldp[c]),1e-8))
+                p=current_ps[i]
                 # Avoid reinforcing stale samples outside the conservative ratio bound.
-                clipped=(advantage>0 and ratio>1.2) or (advantage<0 and ratio<.8)
                 score=-p.copy();score[c]+=1
                 logp=np.log(np.maximum(p,1e-8));entropy=-float(p@logp)
                 pg=0. if clipped else float(np.clip(ratio,.8,1.2))*advantage
@@ -157,7 +174,6 @@ class Learner:
             raise ValueError('Niefinitywna aktualizacja — zachowano poprzednie wagi')
         self.heads=new_heads;self.value=new_value
         self.loss=float(np.mean(errors));self.entropy=float(np.mean(ent)) if ent else 0.
-        self.updates+=1
 
     def finish(self, result, survived):
         if result not in ('loss','win'):
@@ -181,6 +197,7 @@ class Learner:
                 **{f'h{i}':h for i,h in enumerate(self.heads)},value=self.value,
                 updates=self.updates,steps=self.steps,episodes=self.episodes,wins=self.wins,
                 best=self.best,loss=self.loss,entropy=self.entropy,
+                last_weight_change=self.last_weight_change,last_update_delta=self.last_update_delta,
                 continuous_updates=self.continuous_updates,guided_steps=self.guided_steps,
                 rng=json.dumps(self.rng.bit_generator.state))
             f.flush();os.fsync(f.fileno())

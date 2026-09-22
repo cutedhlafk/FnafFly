@@ -47,10 +47,18 @@ Testy: `.venv\Scripts\python.exe -m unittest discover -s tests -v`.
 
 ### Ciągłe uczenie, obrona i dźwięk
 
-- Aktualizacja następuje także w trakcie nocy, po co najmniej 32 decyzjach
+- Aktualizacja następuje także w trakcie nocy, po co najmniej 16 decyzjach
   potwierdzonych odczytem zegara. Nagroda jest rozdzielana między decyzje sprzed
   przechwycenia obrazu, nie między późniejsze akcje wykonane podczas pracy OCR.
   Wagi mają ograniczone aktualizacje i kontrolę wartości skończonych.
+  Każdy potwierdzony fragment przechodzi trzy ograniczone kroki optymalizacji;
+  dla kliknięcia ograniczane jest łączne prawdopodobieństwo akcji i współrzędnych.
+  Panel pokazuje czas ostatniej zmiany wag, jej wielkość i przyczynę oczekiwania.
+- Wznowienie z ekranu instrukcji po pauzie wraca do menu i ponownie potwierdza
+  50/20. Brak odczytu GO nie blokuje rozpoznania instrukcji; jest ponowienie
+  i powrót do menu. F7 uruchamia ponownie wątek treningu/OCR po jego błędzie.
+  Stare wyniki OCR sprzed wznowienia lub utraty fokusu są odrzucane; ta sama
+  klatka nie jest liczona jako dwa niezależne potwierdzenia końca nocy.
 - W panelu jest katalog wszystkich 50 postaci: sygnał, obrona i źródło.
   `src/defense_knowledge.py` zawiera również plany działań. Automatycznie podłączone
   są obecnie pewne sygnały OCR (wyciszenie rozmowy, reklama, reset wentylacji),

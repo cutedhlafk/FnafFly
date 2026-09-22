@@ -1,3 +1,26 @@
+# Sprawdzenie autotreningu — 22.09.2026
+
+## Ponowna naprawa wznowienia i uczenia
+
+- Odtworzono w testach blokadę: pauza usuwała potwierdzenie trudności, a ekran
+  instrukcji bez tego potwierdzenia nie miał obsługi. F7 nie wyprowadzało z niego
+  programu. Teraz następuje powrót do menu i ponowna weryfikacja 50/20.
+- Instrukcje są rozpoznawane także bez odczytanego GO; zielony przycisk ma
+  dopasowanie pomocnicze, a brak przycisku uruchamia ograniczony czasowo powrót.
+- F7 potrafi ponownie uruchomić zakończony błędem wątek trenera lub OCR.
+  Ta sama klatka nie jest powtórnym potwierdzeniem wyniku. Odrzucane są odczyty
+  sprzed wznowienia, utraty fokusu i terminu zakończenia przejścia ekranów.
+- 40 testów przeszło. Uczenie używa fragmentów po 16 potwierdzonych decyzjach,
+  trzech ograniczonych przebiegów optymalizacji i łącznego ilorazu prawdopodobieństw
+  przy akcji myszy. Wagi nadal nie są resetowane.
+- Rzeczywista próba F8/F7: paused zmieniło się z true na false; licznik decyzji
+  wzrósł z 1736 do 1798, aktualizacji z 54 do 58, aktualizacji podczas nocy z 10
+  do 13. Rozpoznano przegraną po 24,3 s i automatycznie rozpoczęto kolejną próbę.
+  Wielkość ostatniej sprawdzonej zmiany wag wynosiła około 0,097.
+- Panel podaje stan wątków/przyczynę oczekiwania oraz czas i wielkość zmiany wag.
+  Wynik testu potwierdza wykonywanie aktualizacji, nie poprawę skuteczności.
+  Nie uzyskano wygranej 50/20 ani podstaw do gwarancji 100% wygranych.
+
 # Sprawdzenie autotreningu — 21.09.2026
 
 ## Naprawa F7

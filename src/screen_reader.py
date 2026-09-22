@@ -48,7 +48,7 @@ def classify(words):
         obs.scene='loss'
     elif 'TAKETHISITEMFOR' in joined and 'YOURTROUBLES' in joined:
         obs.scene='bonus'
-    elif 'go' in obs.buttons and any(t in joined for t in ('CONTROLS','CLOSEDOOR','FLASHLIGHT','POWERGENERATOR')):
+    elif sum(t in joined for t in ('POWERGENERATOR','FLASHLIGHT','CLOSELEFTDOOR','CLOSERIGHTDOOR','CLOSEFORWARDVENT'))>=3:
         obs.scene='instructions'
     else:
         for text,x,y,p in words:
@@ -106,7 +106,7 @@ class ScreenReader:
                         break
         # Large stylized GO text is sometimes missed. Its green button is distinctive;
         # restrict this fallback to a recognized menu, never arbitrary gameplay.
-        if obs.scene=='menu' and 'go' not in obs.buttons:
+        if obs.scene in ('menu','instructions') and 'go' not in obs.buttons:
             arr=np.asarray(img,dtype=np.float32)
             green=(arr[:,:,1]>65)&(arr[:,:,1]>arr[:,:,0]*1.12)&(arr[:,:,1]>arr[:,:,2]*1.3)
             green[:int(img.height*.80),:]=False
