@@ -1,4 +1,42 @@
-# Sprawdzenie autotreningu — 22.09.2026
+# Sprawdzenie autotreningu — 23.09.2026
+
+## F7, OCR i Vent/Duct — ponowne sprawdzenie
+
+- 64 testy przeszły; parser start_fly.ps1 i kompilacja Pythona bez błędów.
+- Usunięto powiększanie małych wycinków przez domyślne Det.limit_type=min.
+  Na zapisanym ekranie menu odczyt skrócił się z 23,5 s do około 0,55 s;
+  instrukcje z małego wycinka odczytano w około 0,28 s. To pomiary poza
+  obciążoną pętlą gry. Na żywo nadal zdarzają się odczyty przekraczające 4 s,
+  które są odrzucane; nie zwiększano dopuszczalnego wieku obrazu.
+- Ograniczono wątki OpenCV/BLAS, dodano krótką przerwę dla OCR oraz odczyt
+  wyników i komunikatów z mniejszych regionów. API pokazuje ocr_age,
+  ocr_duration i ocr_scene.
+- W rzeczywistym UCN sprawdzono F8 (paused=true), następnie F7 (paused=false).
+  Log 17:33:02: resume; 17:33:18: potwierdzone 10 000 punktów; 17:33:26:
+  start nocy. Decyzje wzrosły 1893→1897. O 17:33:47 zapisano przegraną
+  i aktualizację numer 64; o 17:34:03 rozpoczęto automatycznie kolejną próbę.
+- Model rozszerzono do 43 akcji bez kasowania starych wag. Na żywo potwierdzono
+  wysyłanie MONITOR_OPEN i VENT_SYSTEM. Pełnej sekwencji pułapka/kanał/wabik
+  nie potwierdzono; testy tych mapowań nie zastępują kalibracji w grze.
+- Nie wykazano wygranej 50/20 ani poprawy skuteczności strategii.
+
+## Przegląd zmian skryptów
+
+- 55 testów zakończonych powodzeniem (`unittest discover -s tests -q`). Nowe
+  regresje obejmują migrację akcji, maskowanie rozkładu podczas uczenia, wejście
+  myszy na pasek, F12, świeżość odczytów, błędne ustawienia AUTO50, brak obrazu,
+  fałszywe potwierdzenie 50/20 i niepoprawne szablony ekranów.
+- `compileall` dla src, auto50.py i tests; parser PowerShell dla build_audio.ps1,
+  enable_phone.ps1 i start_fly.ps1: bez błędów składni.
+- Rzeczywisty checkpoint wczytany bez zapisu: 1883 decyzje, 63 aktualizacje,
+  33 akcje po migracji w pamięci. Kopia sprzed migracji powstanie przy pierwszym
+  zapisie nowego trenera. RapidOCR uruchomiony: pusty obraz rozpoznany jako unknown.
+- Serwer lokalny nie działał podczas końcowego sprawdzenia. Nie wykonywano
+  nowej nocy ani testu wejścia w działającej grze w tej rewizji. Wcześniejsze
+  testy rzeczywiste opisane niżej dotyczą wcześniejszej wersji.
+- Naprawiono niepodłączony moduł myszy, niepotwierdzony start AUTO50, obejście
+  kontroli starego OCR, błędne uznawanie brakującego obrazu za zmianę ekranu,
+  nieograniczone parametry czasowe oraz zielony obszar traktowany jako instrukcje.
 
 ## Ponowna naprawa wznowienia i uczenia
 

@@ -5,8 +5,12 @@ import os
 import shutil
 import time
 import numpy as np
+from mouse_controls import MOUSE_ACTIONS, BASE_MOUSE_ACTIONS
 
 ACTIONS = ['WAIT','A','D','W','F','S','SPACE','Z','X','C','1','2','3','4','5','6','ENTER','CLICK','MOVE','HOLD_CLICK']
+LEGACY_ACTIONS = ACTIONS.copy()
+ACTIONS = ACTIONS + MOUSE_ACTIONS
+RAW_MOUSE = {ACTIONS.index(a) for a in ('CLICK','MOVE','HOLD_CLICK')}
 SIZES = [len(ACTIONS), 40, 24]
 ROLLOUT = 16
 
@@ -35,12 +39,14 @@ class Learner:
         if self.path.exists():
             with np.load(self.path,allow_pickle=False) as d:
                 version=int(d['version'])
-                if str(d['signature'])!=signature or d['actions'].tolist()!=ACTIONS or version not in (1,2,3):
+                old_actions=d['actions'].tolist()
+                migrate_mouse=old_actions in (LEGACY_ACTIONS,LEGACY_ACTIONS+BASE_MOUSE_ACTIONS)
+                if str(d['signature'])!=signature or old_actions not in (ACTIONS,LEGACY_ACTIONS,LEGACY_ACTIONS+BASE_MOUSE_ACTIONS) or version not in (1,2,3,4,5):
                     raise ValueError('Niezgodny checkpoint autotreningu')
                 arrays=[d[f'h{i}'] for i in range(len(SIZES))]
                 old_value=d['value'].copy()
                 old_extra=int(d['extra_features']) if 'extra_features' in d else 0
-                migrate=extra_features>0 and old_extra==0 and version<3
+                migrate=extra_features>0 and old_extra==0
                 if migrate:
                     if old_value.shape!=(features-extra_features,):
                         raise ValueError('Niezgodny rozmiar migracji audio')
@@ -49,6 +55,9 @@ class Learner:
                     self._migration_suffix='.pre-audio-backup.npz'
                 elif old_extra!=extra_features:
                     raise ValueError('Niezgodny zestaw cech audio')
+                if migrate_mouse:
+                    arrays[0]=np.concatenate([arrays[0],np.zeros((len(ACTIONS)-len(old_actions),features),np.float32)])
+                    self._migration_suffix='.pre-mouse-backup.npz' if old_actions==LEGACY_ACTIONS else '.pre-vent-duct-backup.npz'
                 if any(a.shape!=h.shape or not np.isfinite(a).all() for a,h in zip(arrays,self.heads)):
                     raise ValueError('Uszkodzone wagi checkpointu')
                 if old_value.shape!=self.value.shape or not np.isfinite(old_value).all():
@@ -60,7 +69,7 @@ class Learner:
                 for k in ['best','loss','entropy','last_weight_change','last_update_delta']:
                     if k in d:setattr(self,k,float(d[k]))
                 self.rng.bit_generator.state=json.loads(str(d['rng']))
-                self._needs_migration_backup=version==1 or migrate
+                self._needs_migration_backup=version==1 or migrate or migrate_mouse
 
     def features(self, features):
         x=np.asarray(features,np.float32).copy()
@@ -75,12 +84,15 @@ class Learner:
         self.pending.clear()
         self.credited=0
 
-    def act(self, features):
+    def act(self, features, allowed=None):
         x=self.features(features)
         ps=[softmax(h@x) for h in self.heads]
+        mask=np.ones(len(ACTIONS),dtype=bool) if allowed is None else np.asarray(allowed,dtype=bool).copy()
+        if mask.shape!=(len(ACTIONS),) or not mask.any():raise ValueError('Brak poprawnych akcji')
+        ps[0]=softmax(np.where(mask,self.heads[0]@x,-np.inf))
         choices=[int(self.rng.choice(len(p),p=p)) for p in ps]
         mouse=((choices[1]+.5)/SIZES[1],(choices[2]+.5)/SIZES[2])
-        return ACTIONS[choices[0]],mouse,(x,choices,ps,float(self.value@x),True)
+        return ACTIONS[choices[0]],mouse,(x,choices,ps,float(self.value@x),True,mask)
 
     def guided(self, features, action, mouse=(.5,.5)):
         """Known UI cue supplies an expert action, never a fictitious policy sample."""
@@ -98,9 +110,9 @@ class Learner:
         self.steps+=1
         if not transition[4]:
             # Supervision is separate from reinforcement updates and clearly counted.
-            x,choices,ps,_,_=transition
+            x,choices,ps,_,_=transition[:5]
             for i,(head,p,c) in enumerate(zip(self.heads,ps,choices)):
-                if i and choices[0]<17:continue
+                if i and choices[0] not in RAW_MOUSE:continue
                 error=-p.copy();error[c]+=1
                 head += .002*np.outer(error,x)
             self.guided_steps+=1
@@ -142,19 +154,22 @@ class Learner:
         grads=[np.zeros_like(h) for h in self.heads]
         counts=[0]*len(self.heads)
         vg=np.zeros_like(self.value);errors=[];ent=[]
-        for ((x,choices,old_ps,baseline,actor),_,_),target in zip(entries,returns):
+        for (transition,_,_),target in zip(entries,returns):
+            x,choices,old_ps,baseline,actor=transition[:5]
             advantage=float(np.clip(target-float(self.value@x),-5,5))
             vg+=advantage*x;errors.append(advantage**2)
             if not actor:continue
             current_ps=[softmax(h@x) for h in self.heads]
-            relevant=range(len(self.heads)) if choices[0]>=17 else range(1)
+            if len(transition)>5:
+                current_ps[0]=softmax(np.where(transition[5],self.heads[0]@x,-np.inf))
+            relevant=range(len(self.heads)) if choices[0] in RAW_MOUSE else range(1)
             # The sampled action includes both mouse coordinates. Clip the joint
             # likelihood, not three unrelated ratios for one composite action.
             log_ratio=sum(np.log(max(float(current_ps[i][choices[i]]),1e-8))-np.log(max(float(old_ps[i][choices[i]]),1e-8)) for i in relevant)
             ratio=float(np.exp(np.clip(log_ratio,-20,20)))
             clipped=(advantage>0 and ratio>1.2) or (advantage<0 and ratio<.8)
             for i,(head,oldp,c) in enumerate(zip(self.heads,old_ps,choices)):
-                if i and choices[0]<17:continue
+                if i and choices[0] not in RAW_MOUSE:continue
                 p=current_ps[i]
                 # Avoid reinforcing stale samples outside the conservative ratio bound.
                 score=-p.copy();score[c]+=1
@@ -193,7 +208,7 @@ class Learner:
         self.path.parent.mkdir(parents=True,exist_ok=True)
         temp=self.path.with_suffix('.tmp')
         with temp.open('wb') as f:
-            np.savez_compressed(f,version=3 if self.extra_features else 2,extra_features=self.extra_features,signature=self.signature,actions=np.array(ACTIONS),
+            np.savez_compressed(f,version=5,extra_features=self.extra_features,signature=self.signature,actions=np.array(ACTIONS),
                 **{f'h{i}':h for i,h in enumerate(self.heads)},value=self.value,
                 updates=self.updates,steps=self.steps,episodes=self.episodes,wins=self.wins,
                 best=self.best,loss=self.loss,entropy=self.entropy,

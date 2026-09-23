@@ -1,5 +1,33 @@
 # Fly / UCN — lokalne laboratorium
 
+## Poprawki skryptów — 23.09.2026
+
+- Model ma 43 akcje, w tym zakładanie/zdejmowanie maski, otwieranie/zamykanie
+  monitora, CAM SYSTEM i osiem kamer. Akcje myszy są podłączone do autotreningu.
+  Paski maski i monitora obsługuje ruch kursora poza pasek, na pasek i z powrotem.
+  Obsługa zachowuje ochronę fokusu, nakładek i F12.
+- Dodano VENT SYSTEM, DUCT SYSTEM, pułapki, zamknięcia kanałów i wabiki.
+  Szczegóły oraz ograniczenia: [docs/vent_duct.md](docs/vent_duct.md).
+- OCR ogranicza rozmiar obrazów i osobno odczytuje instrukcje oraz wyniki.
+  API pokazuje wiek i czas odczytu, żeby odróżnić blokadę OCR od pauzy.
+- START_FLY pokazuje błąd startu i wznawia istniejący proces zamiast uruchamiać
+  drugą kopię. Pierwszy start wymaga załadowania pełnego grafu i OCR.
+- Dostępne akcje zależą od świeżego obrazu interfejsu; kamery wymagają również
+  odczytu etykiet mapy. Model uczy się z tego samego ograniczonego rozkładu,
+  z którego wybrał akcję. Stałe punkty kamer odpowiadają sprawdzonemu układowi
+  UCN 16:9. Rozpoznanie pasków jest heurystyką, nie detektorem animatroników.
+- Zapis starszego modelu jest rozszerzany bez kasowania starych wag. Pierwszy
+  zapis po migracji tworzy `models/auto50_policy.pre-mouse-backup.npz`.
+- AUTO50 nie uznaje samej różnicy obrazów za dowód 50/20: sprawdza menu i
+  punktację przez OCR. Brak kalibracji nie blokuje zwykłej ścieżki OCR.
+  Uczenie startuje po rozpoznaniu rozgrywki, a stare odczyty wstrzymują akcje.
+- Po zmianie plików potrzebne jest ponowne uruchomienie procesu trenera.
+  Gdy jest wyłączony, uruchom `START_FLY.bat`. Samo F7 nie przeładowuje kodu.
+
+Weryfikacja: 64 testy, kompilacja składni Pythona, parser skryptów
+PowerShell i wczytanie istniejącego modelu. Ta rewizja nie przeszła jeszcze
+testu pełnej nocy w grze i nie dowodzi wygranej 50/20.
+
 ## Autotrening 50/20 — aktualizacja 21.09.2026
 
 **Uruchom `START_FLY.bat`.** Otworzy panel na `http://127.0.0.1:8766`, uruchomi UCN,
@@ -18,7 +46,7 @@ zapisuje go i uruchamia następną próbę. Nie wymaga demonstracji ani kalibrac
   „Oglądaj na telefonie” w panelu PC. Telefon służy do oglądania, nie do sterowania.
   Komputer i UCN pracują także po zamknięciu podglądu.
 - `ENABLE_PHONE.bat` jednorazowo dodaje regułę Zapory Windows dla lokalnej podsieci,
-  portu 8766 i Pythona tego projektu. Wymaga zgody administratora Windows.
+  portu 8766. Wymaga zgody administratora Windows.
   Regułę można usunąć w administracyjnym PowerShell:
   `Remove-NetFirewallRule -Name FlyUCN-Viewer-8766`.
 - Model: `models/auto50_policy.npz`; dziennik prób: `logs/auto50.jsonl`;

@@ -48,6 +48,8 @@ class GameStateDetector:
         size=(64, 36),
     ):
         self.threshold = float(threshold)
+        if not np.isfinite(self.threshold) or self.threshold<=0:
+            raise ValueError('Template threshold must be positive and finite')
         self.required_stable_frames = max(1, int(stable_frames))
         self.size = tuple(size)
 
@@ -91,6 +93,9 @@ class GameStateDetector:
                 f"Invalid template shape for {name}: "
                 f"{array.shape}, expected {expected_shape}"
             )
+
+        if not np.isfinite(array).all() or np.any((array<0)|(array>1)):
+            raise ValueError('Template pixels must be finite and within 0..1')
 
         self.templates[name] = array.copy()
         self.reset()

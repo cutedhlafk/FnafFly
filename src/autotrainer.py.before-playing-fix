@@ -15,11 +15,6 @@ import sys
 import threading
 import time
 import webbrowser
-import os
-
-# Tiny policy matrix products must not occupy every core while OCR runs.
-for _thread_setting in ('OPENBLAS_NUM_THREADS', 'MKL_NUM_THREADS', 'OMP_NUM_THREADS'):
-    os.environ[_thread_setting] = '1'
 
 import numpy as np
 
@@ -29,8 +24,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from auto50 import Auto50Bootstrap
-from autopolicy import Learner, ACTIONS
-from mouse_controls import MouseControls
+from autopolicy import Learner
 from screen_reader import ScreenReader
 from defense_knowledge import DefenseAdvisor, catalog
 from game_audio import GameAudio, FEATURE_COUNT, combine
@@ -70,7 +64,6 @@ class EpisodeLoop:
         self.phase = "menu"
         self.active = False
         self.verified = False
-        self.trusted_auto50_start = False
 
         self.elapsed = 0.0
         self.started = 0.0
@@ -91,7 +84,6 @@ class EpisodeLoop:
         self.action = "WAIT"
         self.note = "Oczekiwanie na menu UCN"
         self.advisor = DefenseAdvisor()
-        self.mouse_controls = MouseControls()
 
     def abort(
         self,
@@ -111,79 +103,12 @@ class EpisodeLoop:
 
         self.active = False
         self.verified = False
-        self.trusted_auto50_start = False
         self.phase = "menu"
 
         self.note = reason
 
         self.game.release()
         self.advisor.reset()
-        self.mouse_controls.reset()
-
-    def start_auto50_episode(
-        self,
-        now,
-        grace=1.2,
-    ):
-        """
-        Start a verified 50/20 episode after AUTO50.
-
-        AUTO50 already verified the menu transition,
-        so slow OCR must not block policy execution.
-        """
-
-        if self.active:
-            return True
-
-        if not self.verified or self.last_scene != 'playing' or now-self.last_known>3:
-            return False
-
-        self.active = True
-        self.trusted_auto50_start = True
-        self.phase = "playing"
-
-        self.elapsed = 0.0
-        self.started = now
-        self.last_progress = now
-        self.last_known = now
-
-        self.last_scene = "playing"
-        self.stable = 1
-
-        self.deadline = (
-            now
-            + max(
-                0.0,
-                float(grace),
-            )
-        )
-
-        self.brain.reset()
-        self.advisor.reset()
-
-        if hasattr(
-            self.learner,
-            "reset_memory",
-        ):
-            self.learner.reset_memory()
-
-        self.log(
-            "start",
-            difficulty="50/20",
-            episode=(
-                self.learner.episodes
-                + 1
-            ),
-            source="AUTO50",
-        )
-
-        self.note = (
-            f"Trening 50/20 ? "
-            f"noc {self.learner.episodes + 1} ? "
-            "start AUTO50"
-        )
-
-        return True
 
     def observe(
         self,
@@ -196,7 +121,6 @@ class EpisodeLoop:
         if min(now,captured_at) < self.deadline:
             return
         self.advisor.observe(obs, captured_at)
-        self.mouse_controls.read(obs, captured_at)
         if obs.scene == self.last_scene:
             self.stable += 1
         else:
@@ -205,7 +129,7 @@ class EpisodeLoop:
         self.last_scene = obs.scene
 
         if obs.scene != "unknown":
-            self.last_known = captured_at
+            self.last_known = now
 
         if obs.scene == "menu":
             if self.active:
@@ -313,7 +237,6 @@ class EpisodeLoop:
                 self.brain.reset()
                 self.advisor.reset()
                 self.advisor.observe(obs, captured_at)
-                self.mouse_controls.begin_night(now)
 
                 if hasattr(
                     self.learner,
@@ -412,7 +335,6 @@ class EpisodeLoop:
 
                 self.active = False
                 self.verified = False
-                self.trusted_auto50_start = False
                 self.phase = "result"
 
                 self.note = (
@@ -502,9 +424,6 @@ class EpisodeLoop:
         if now < self.deadline:
             return
 
-        if now < self.mouse_controls.ready_at:
-            return
-
         if self.last_scene in (
             "menu",
             "instructions",
@@ -521,24 +440,17 @@ class EpisodeLoop:
         ):
             return
 
-        advice = self.advisor.suggest(now) if self.mouse_controls.mode != 'mask' else None
-        setup = None if advice else self.mouse_controls.setup_action(ACTIONS, now)
+        advice = self.advisor.suggest(now)
         if advice:
             action, mouse, transition = self.learner.guided(features, advice.action, advice.mouse)
-        elif setup is not None:
-            if setup=='WAIT':return
-            action, mouse, transition = self.learner.guided(features, setup)
-            self.advisor.last_reason='Przygotowanie wentylacji i kanałów: '+setup
         else:
-            action, mouse, transition = self.learner.act(features, self.mouse_controls.allowed(ACTIONS, now))
+            action, mouse, transition = self.learner.act(features)
 
-        physical_action, physical_mouse = (action, mouse) if advice else self.mouse_controls.physical(action, mouse)
         if self.game.perform(
-            physical_action,
-            physical_mouse,
+            action,
+            mouse,
         ):
             self.action = action
-            self.mouse_controls.performed(action, time.monotonic())
             self.advisor.performed(action, now, advice)
 
             self.learner.record(
@@ -631,7 +543,6 @@ class Trainer:
         self.reader = None
         self.capture_generation = 0
         self.ocr_heartbeat = 0.0
-        self.ocr_duration = 0.0
         self.latest = None
         self.observed = None
 
@@ -911,8 +822,9 @@ class Trainer:
             # Po pierwszym GO UCN mo?e pokaza? ekran instrukcji.
             # Zielony GO wykrywamy bez OCR.
             frame = self.game.capture()
-            instruction = self.auto50.reader.read(frame) if frame is not None else None
-            go = instruction.buttons.get('go') if instruction is not None and instruction.scene == 'instructions' else None
+            go = self._green_go_point(
+                frame
+            )
 
             if (
                 go is not None
@@ -939,8 +851,6 @@ class Trainer:
                     source="green-button",
                 )
 
-            # Actual gameplay must be observed before actions or rewards start.
-            # A changed image after GO can also be the instructions screen.
             return True
 
         except Exception as exc:
@@ -1023,7 +933,6 @@ class Trainer:
                     current
                 )
 
-                read_started = time.monotonic()
                 obs = (
                     self.reader.read(
                         frame
@@ -1035,7 +944,6 @@ class Trainer:
                     if self.paused or self.latest is None or generation != self.capture_generation:
                         continue
                     self.ocr_heartbeat = time.monotonic()
-                    self.ocr_duration = self.ocr_heartbeat-read_started
                     self.observed = (
                         obs,
                         stamp,
@@ -1127,8 +1035,6 @@ class Trainer:
                             self.auto50_next = 0.0
 
                             self.game.emergency.clear()
-                            self.loop.mouse_controls.reset()
-                            self.loop.advisor.reset()
                             self.capture_generation += 1
                             self.ensure_reader()
                             self.note = "F7 odebrane — uruchamiam UCN."
@@ -1226,8 +1132,6 @@ class Trainer:
 
                 if (
                     self.autonomous_started
-                    and self.auto50.config is not None
-                    and self.loop.last_scene == "menu"
                     and not self.loop.active
                     and self.loop.phase == "menu"
                     and begin >= self.loop.deadline
@@ -1244,8 +1148,6 @@ class Trainer:
 
                 if frame is None:
                     continue
-
-                self.loop.mouse_controls.observe(frame, begin)
 
                 with self.lock:
                     self.latest = (
@@ -1321,7 +1223,7 @@ class Trainer:
                     begin
                     - last_action
                     >= 0.22
-                    and (not near_black or self.loop.mouse_controls.mode == 'mask' or self.loop.advisor.suggest(begin) is not None)
+                    and (not near_black or self.loop.advisor.suggest(begin) is not None)
                 ):
                     self.loop.act(
                         x,
@@ -1390,7 +1292,7 @@ class Trainer:
 
                 self.closed.wait(
                     max(
-                        0.05 if self.loop.active else 0.35,
+                        0,
                         (
                             0.16
                             - (
@@ -1439,10 +1341,6 @@ class Trainer:
 
                 "action":
                     self.loop.action,
-                "mouse_mode": self.loop.mouse_controls.mode,
-                "monitor_system": self.loop.mouse_controls.system,
-                "vent_duct_setup": self.loop.mouse_controls.setup_note,
-                "mouse_actions_sent": dict(self.loop.mouse_controls.counts),
 
                 "seconds":
                     self.loop.elapsed,
@@ -1462,9 +1360,6 @@ class Trainer:
                 "training_health": self.training_health(),
                 "worker_alive": self.worker.is_alive(),
                 "ocr_alive": self.ocr_worker.is_alive(),
-                "ocr_age": round(time.monotonic()-self.observed[1], 2) if self.observed else None,
-                "ocr_duration": round(self.ocr_duration, 2),
-                "ocr_scene": self.observed[0].scene if self.observed else None,
                 "last_weight_change": self.learner.last_weight_change,
                 "last_update_delta": self.learner.last_update_delta,
                 "audio": self.audio.sample()[1],

@@ -37,8 +37,10 @@ class Auto50Bootstrap:
     def __init__(
         self,
         game,
+        reader=None,
     ):
         self.game = game
+        self.reader = reader
 
         self.config = (
             self._load_config()
@@ -156,6 +158,13 @@ class Auto50Bootstrap:
         ):
             if name not in config:
                 config[name] = value
+            try:
+                config[name] = float(config[name])
+            except (ValueError, TypeError):
+                return None
+            limit = 30. if name.endswith('_seconds') else 1.
+            if not np.isfinite(config[name]) or not 0 < config[name] <= limit:
+                return None
 
         return config
 
@@ -184,13 +193,13 @@ class Auto50Bootstrap:
             first is None
             or second is None
         ):
-            return 1.0
+            return 0.0
 
         if (
             first.size
             != second.size
         ):
-            return 1.0
+            return 0.0
 
         first_gray = cls._gray(
             first
@@ -204,7 +213,7 @@ class Auto50Bootstrap:
             first_gray.shape
             != second_gray.shape
         ):
-            return 1.0
+            return 0.0
 
         width = max(
             1,
@@ -252,6 +261,7 @@ class Auto50Bootstrap:
                 or self.game
                 .closed
                 .is_set()
+                or not self.game.focused()
             ):
                 return False
 
@@ -391,6 +401,12 @@ class Auto50Bootstrap:
         #
         # SET ALL 0
         #
+        if self.reader is None:
+            from screen_reader import ScreenReader
+            self.reader = ScreenReader()
+        menu_frame = self.game.capture()
+        if menu_frame is None or self.reader.read(menu_frame).scene != 'menu':
+            return Auto50Result(False, 'AUTO50: brak potwierdzonego menu; pomijam kliknięcia.')
         if not (
             self.game
             .click_normalized(
@@ -517,6 +533,9 @@ class Auto50Bootstrap:
         #
         # GO!
         #
+        configured = self.reader.read(twenty_frame)
+        if configured.scene != 'menu' or not configured.verified50:
+            return Auto50Result(False, 'AUTO50: OCR nie potwierdził 50/20. Nie uruchamiam nocy.', setup_difference)
         before_go = (
             twenty_frame
         )
@@ -562,15 +581,14 @@ class Auto50Bootstrap:
 
         if after_go is None:
             return Auto50Result(
-                True,
+                False,
                 (
-                    "50/20 ustawione "
-                    "i kliknieto GO."
+                    "Brak obrazu po GO; start niepotwierdzony."
                 ),
                 setup_difference=(
                     setup_difference
                 ),
-                go_difference=1.0,
+                go_difference=0.0,
             )
 
         go_difference = (

@@ -2,7 +2,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 import numpy as np
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'src'))
 from autopolicy import Learner
@@ -100,7 +100,11 @@ class AutoTests(unittest.TestCase):
                 self.assertFalse(loop.active)
                 menu.verified50=True;loop.observe(menu,base+1)
                 loop.observe(Observation('playing',seconds=0),base+3)
-                loop.act(np.ones(8),base+3.1)
+                # The initial defense sequence requires a fresh office frame.
+                loop.mouse_controls.mode='office'
+                loop.mouse_controls.observed_at=base+3
+                with patch('autotrainer.time.monotonic',return_value=base+3.1):
+                    loop.act(np.ones(8),base+3.1)
                 loop.observe(Observation('playing',seconds=2),base+5)
                 loop.observe(Observation('loss'),base+6)
                 loop.observe(Observation('loss'),base+7)

@@ -961,11 +961,20 @@ class Game:
         if action == "WAIT":
             return True
 
+        if action == "HOVER_ARROW":
+            # Re-enter the arrow even if the previous action left the cursor there.
+            for point in ((mouse[0], .88), mouse, (mouse[0], .88)):
+                if not self._perform('MOVE', point):return False
+                if self.emergency.wait(.09):return False
+            return True
+
         if action in [
             "MOVE",
             "CLICK",
             "HOLD_CLICK",
         ]:
+            if not all(0.0 <= float(v) <= 1.0 for v in mouse):
+                raise ValueError('Mouse coordinates must be finite and within 0..1')
             rect = self.rect()
 
             if not rect:

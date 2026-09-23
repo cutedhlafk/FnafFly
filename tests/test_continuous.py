@@ -62,7 +62,7 @@ class ContinualTests(unittest.TestCase):
         migrated.save()
         self.assertTrue(self.path.with_suffix('.v1-backup.npz').exists())
         self.assertTrue(self.path.with_suffix('.previous.npz').exists())
-        with np.load(self.path) as f:self.assertEqual(int(f['version']),2)
+        with np.load(self.path) as f:self.assertEqual(int(f['version']),5)
     def test_guided_actions_are_marked_and_teach_separately(self):
         initial=self.p.heads[0].copy()
         action,mouse,t=self.p.guided(self.x,'CLICK',(.33,.61))
